@@ -1,0 +1,1202 @@
+---
+title: "Survey Methodology II Assignment"
+authors: "Mikaela DeSmedt, Rianne Nienke Visscher, Sara Cristina Herranz Amado"
+format: 
+  html:
+    embed-resources: true
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## **Libraries**
+
+```{r}
+#| output: false
+
+library(tidyverse)
+library(haven)
+library(memisc) 
+library(DataExplorer)
+library(caret) 
+library(FactoMineR)
+library(factoextra)
+library(mice)
+library(missMDA)
+library(cowplot)
+library(cv)
+library(autoMrP)
+library(glmmTMB)
+library(forcats)
+library(gmodels)
+library(leaflet)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(NbClust)
+library(randomForest)
+```
+
+## **Data**
+
+```{r}
+#| output: false
+#| warning: false
+
+
+# Loading data
+source("data_wrangling_script.R") # ZA7575
+more_data <- read.csv("more_data.csv") # additional data
+iso <- read.csv("Iso_codes.csv") # iso codes
+
+# Merging 
+iso <- iso |> 
+  dplyr::select(alpha.2, alpha.3) 
+
+census <-census |> 
+  rename(isocntry = countrycode)
+  
+
+ full_data <- eu_bar |> 
+  mutate(countrycode = str_replace_all(countrycode, "DE-W|DE-E", "DE")) |> 
+  left_join(iso, by=c("countrycode" = "alpha.2")) |> 
+  left_join(more_data, by=c("alpha.3" = "iso_code")) 
+
+full_data_census <- full_data #remove ig not using auto package
+
+set.seed(123)
+full_data <- full_data |> slice_sample(prop = 0.1)
+
+write.csv(full_data, "full_data.csv", row.names = FALSE)
+
+```
+
+```{r}
+full_data <- read.csv("full_data.csv")
+
+```
+
+## **Feature selection**
+
+### **Eurobarometer**
+
+```{r}
+# Sample of the cleaned data
+set.seed(123)
+eu_bar <- eu_bar |> 
+ slice_sample(prop = 0.1) 
+
+```
+
+**Numeric variables:**
+
+```{r}
+#| output: false
+#| warning: false
+
+# Select numeric variables
+cor_data <- eu_bar |> 
+  dplyr::select(where(is.numeric)) 
+
+# Impute missing values 
+set.seed(123)
+cor_data <- complete(mice(cor_data, m = 2, method ='rf'))
+
+# Step 2: Use findCorrelation() to identify highly correlated features
+correlation_matrix <- cor(cor_data)
+highly_correlated <- findCorrelation(correlation_matrix, cutoff = 0.75, exact = FALSE)
+
+# Step 3: Remove highly correlated features from the dataset
+selected_features <- cor_data[, -highly_correlated]
+
+# Getting the names of the selected features
+selected_features <- names(selected_features)
+selected_features
+
+# New sample dataset
+data_f <- eu_bar |> 
+  dplyr::select(selected_features, transgender_changecivildocuments) |> 
+  slice_sample(prop = 0.1)
+
+```
+
+**Factor variables:**
+
+```{r}
+#| warning: false
+
+# Selecting factor variables
+data_fb <- eu_bar |> 
+  dplyr::select(where(is.factor)) |> 
+  drop_na()
+
+var <- names(data_fb)
+var_n <- c("expdiscrim_sum")
+
+
+# Chi-square independence test function
+chi_function <- function(var_n){
+  
+  chi_result <- NULL
+ 
+  tryCatch({
+    chi_result <- tidy(chisq.test(data_fb[,i], data_fb$transgender_changecivildocuments))
+  }, error = function(e) {
+    NA
+  })
+  
+}
+
+
+# Chi-square test for var ('data_fb')
+result <- list()
+
+for (i in seq_along (var)){
+chi_sq_result <- chi_function(var[i])
+ result [[i]]<- chi_sq_result
+}
+
+# Combining the results into a data frame
+result_cat <- do.call(rbind, result)
+
+# Adding the category names
+result_cat$variable <- var
+
+result_cat <- result_cat |> 
+  mutate(p.value = round(p.value, 5)) |> 
+  dplyr::select(variable, everything())
+
+# Filtering significant pvalues
+result_sig <- result_cat |> 
+  filter(p.value <= 0.05)
+
+selected_factor <- result_sig$variable 
+
+```
+
+### **data**
+
+```{r}
+#| output: false
+#| warning: false
+
+
+cor_data <- more_data |> 
+  dplyr::select(where(is.numeric)) 
+ 
+cor_data <- complete(mice(cor_data, m = 2, method ='rf'))
+
+```
+
+```{r}
+
+correlation_matrix <- cor(cor_data)
+
+# Step 2: Use findCorrelation() to identify highly correlated features
+highly_correlated <- findCorrelation(correlation_matrix, cutoff = 0.6, exact = FALSE)
+
+# Step 3: Remove highly correlated features from the dataset
+selected_f_other <- cor_data[, -highly_correlated]
+
+# Getting the names of the other selected features
+selected_f_other <- names(selected_f_other)
+selected_f_other
+
+```
+
+**Merge selected features**
+
+```{r}
+#| warning: false
+
+
+# Merge selected features
+full_data_red <- full_data |> 
+  dplyr::select(selected_f_other, selected_factor, selected_features, countrycode)
+
+# Save the target variable to a separate object
+target_variable <- full_data_red$transgender_changecivildocuments
+
+# Process the dataset without the target variable
+full_data_red_processed <- full_data_red %>%
+  mutate(across(any_of(factor_var), as.factor)) %>%
+  mutate(across(any_of(character_var), as.character)) %>%
+  mutate(ageexact = as.numeric(ageexact)) %>%
+  dplyr::select(-transgender_changecivildocuments)
+
+```
+
+## **Missing values**
+
+```{r}
+# Get % of NA per variable
+sapply(full_data_red, function(x) sum(is.na(x))*100/nrow(full_data_red))
+
+# Remove variables with more than 50% NA
+full_data_red <- full_data_red |>
+  dplyr::select(-divworkprom_beingintersex, 
+                -divworkprom_gender, 
+                -divworkprom_beingtransgender)
+
+```
+
+### Testing different imputation methods
+
+```{r}
+#| output: false
+
+
+# New dataframe with diff imputation methods
+mice_imputed <- data.frame(
+  original = full_data_red$discrim_beingintersex,
+  imputed_pmm = complete(mice(full_data_red, 
+                              m = 2, 
+                              method = "pmm", 
+                              seed=123))$discrim_beingintersex,
+  imputed_cart = complete(mice(full_data_red, 
+                               m = 2, 
+                               method = "cart", 
+                               seed = 123))$discrim_beingintersex,
+  imputed_rf = complete(mice(full_data_red, 
+                                m = 2, 
+                                method = "rf", 
+                                seed = 123))$discrim_beingintersex
+)
+```
+
+```{r}
+# Imputation methods: plotting resuls 
+variables <- c("original", "imputed_pmm", "imputed_cart", "imputed_rf")
+titles <- c("Distribution of the discrim_beingintersex", "PMM-imputed distribution", "Cart-imputed distribution", "random_forest-imputed distribution")
+colors_fill <- c("skyblue", "#15ad4f", "#6a6ad9", "#e65100")
+colors_border <- c("skyblue3", "#808080", "#808080", "#808080")
+
+# Initialize an empty plot list for the new plots
+plots <- list()
+
+# Loop through the updated variables to create plots
+for (i in 1:length(variables)) {
+  plots[[i]] <- ggplot(mice_imputed, aes(x = .data[[variables[i]]])) +
+    geom_histogram(binwidth = 1, fill = colors_fill[i], color = colors_border[i], position = "identity") +
+    ggtitle(titles[i]) +
+    theme_classic()
+}
+
+# Combine the new set of plots into a grid
+plot_grid(plotlist = plots, nrow = 2, ncol = 2)
+
+```
+
+```{r}
+#| output: false
+
+
+# Imputing based on best method (cart)
+full_data_red <- complete(mice(full_data_red, 
+                               m=2, 
+                               method = "cart", 
+                               seed=123))
+
+full_data_red$country <- full_data$country
+
+# Add the target variable back to the dataset and drop NAs
+full_data_red <- full_data_red |> 
+  mutate(transgender_changecivildocuments = target_variable) |> 
+  drop_na(transgender_changecivildocuments,country)
+
+full_data_red <- full_data_red %>%
+  mutate(across(any_of(factor_var), as.factor)) %>%
+  mutate(across(any_of(character_var), as.character)) %>%
+  mutate(ageexact = as.numeric(ageexact))
+
+```
+
+## Descriptive analysis
+
+Explaining Cross-Country Differences in Support Levels: This aspect involves analyzing the data to understand why different countries exhibit varying levels of support for transgender individuals obtaining official documents (cq19 in the questionnare).
+
+### Univariate analysis
+
+[**Country related variables**]{.underline}:
+
+The typical country in this data set would likely exhibit characteristics of a society that values freedom of expression and individual rights. It would have a relatively high level of inlusivity and tolerance towards diverse sexual orientations and gender identities, with policies in place to protect and uphold the rights of LGBT individuals. The country may offer opportunities for individuals to express their gender identity through official documentation, and demonstrate a commitment to gender equality and development. However, probably may not have explicit constitutional protections against discrimination based on sexual orientation.
+
+1.  **freedom_expresion_index**: this index measures the degree to which individuals can voice their opinions and the media can present diverse political perspectives. Its values are relatively high, with the majority of observations falling within the upper range.
+
+2.  **lgbt_policy_index**: this index captures to which extent lesbians, gay, bisexual,transgender and other people outside traditional sexuality and gender categories have the same rights as straight and cisgender people. It combines 18 individual policies, such as the legality of same-sex sexual acts, marriage, and gender marker changes. Higher values indicate more rights, negative values regressive policies.
+
+    Considering this, the mean value of 7.547 suggests a moderate level of inclusivity on average across countries, and the histogram suggest great variability in the data.
+
+3.  **gender_marker_change**: represents the extent to which individuals can change their gender marker on official national documents, with a continuous scale where values greater than 0 indicate varying degrees of implementation, and 0 means no implementation (individuals are not permitted to change their gender marker on official documents).
+
+    The minimum value of 0.07188 suggests that even in countries where there is some form of implementation allowing gender marker changes, it may be limited or restricted. This could imply that the process for changing gender markers might be arduous, requiring individuals to meet stringent criteria or face legal obstacles. On the other hand, the maximum value of 1.00000 indicates full implementation, where individuals have unhindered access to change their gender marker on official documents across the entire country. Most of the countries are concentrated in the highest values, although there may be varying degrees of implementation and accessibility.
+
+4.  **gdi**: this is the Gender Development Index, a composite measure which measures gender disparities in human development outcomes, specifically in areas such as health, education, and income. Generally, the values range from 0 to 1. The mean value of approximately 0.9884 suggests a relatively high level of gender development on average. All the countries included have high values of GDI.
+
+5.  **constitutional_protections_against_discrimination**: this a binary variable representing (1) Explicit constitutional provisions as well as legal precedents against LGBT discrimination included or (0) the absence of them. Approximately 10.75% of the countries have constitutional protections against discrimination.
+
+```{r}
+#| warning: false
+
+
+# Summary statistics of country-related variables
+summary_country <-full_data_red |> 
+  dplyr::select(freedom_expresion_index, 
+                lgbt_policy_index, 
+                gender_marker_change, 
+                gdi, 
+                constitutional_protections_against_discrimination) |> 
+  summary()
+
+summary_country
+
+```
+
+[**Sociodemographic variables (+ some more)**]{.underline}**:**
+
+The typical respondent is around 51 years old, catholic, with a moderate self-placement on the political scale. *Something about ed.level that i don't know how to interpet*. Moreover, they use internet on a daily basis and *Something about phoneavailable_summarized that i don't know how to interpet*
+
+1.  **ageexact**: on average, individuals in the dataset are around 51 years old.
+2.  **ageedu_recode5cat**: measures at what age each individual stopped full‐time education, recoded in five categories. Respondents in category two are the most frequent.
+3.  **leftrightplacement**: this variable represents individuals' self-placement on a left-right political scale, ranging from 1 (left) to 10 (right). The mean value of approximately 5.289 suggests a moderate self-placement on the political scale.
+4.  **religion_denomination** gathers information about which religion individuals identify themselves with. Most of the observations lay on 1, chihc correspondes to catholicism. Most of them are christian (catholic, orthodox, protestants or any other type), non believer or agnostics, or didn't want to answer.
+5.  **internetuse_index**: this variable represents an index of internet use, with 1 indicating daily use and 6 indicating never using internet (7 means no access to internet). The mean value of approximately 2.111 suggests a very high level of internet use across the countries.
+6.  **phoneavailable_summarized**: summarizes whether the interviewee has a telephone available or not (1 for yes, 2 for no).
+
+```{r}
+#| warning: false
+
+
+# Summary statistics of sociodemographic variables
+summary_demographics <- full_data_red |> 
+  dplyr::select(ageexact, 
+                ageedu_recode5cat, 
+                leftrightplacement, 
+                religion_denomination, 
+                internetuse_index, 
+                phoneavailable_summarized) |> 
+  summary()
+
+summary_demographics
+
+```
+
+[**Individual-level variables**]{.underline}
+
+Moreover, the typical respondent is in favor of transgender people being able to change their civil documents, although they may not necessarily advocate for a third gender category in official documents. It is likely that they do not have friends who are transgender or transexual. Despite perceiving moderate levels of discrimination based on gender, sexual orientation, and being intersexual, they generally support LGBT rights. For instance, they believe that schools should provide information about being intersex, and would feel comfortable if their children were in a relationship with someone of the same sex. Additionally, they express support for providing anonymous information about their sexual orientation in census or statistical surveys, reflecting a trend towards openness and willingness to disclose this information.
+
+However, when considering interpersonal relationships, such as working with colleagues, the typical respondent tends to express discomfort with the idea of working with homosexual, transgender, or intersexual colleagues. If their children were in a relationship with someone transgender or intersexual, they would feel uncomfortable with the situation. Moreover, they may appear reluctant to publicly defend victims of discrimination and would feel uncomfortable with two women showing affection in public.
+
+Conversely, they would feel more comfortable with a woman holding the highest elected political position, but their comfort level may vary when considering a transgender individual in the same role. Nonetheless, they generally feel that their voice counts in their own country.
+
+1.  **transgender_changecivildocuments**: indicates whether transgender individuals can change their civil documents (1 for yes, 2 for no). The most frequent category is yes, so most of the people are in favor of transgender people being able to change their civil documents.
+2.  **officialdocuments_includethirdgend**: indicates whether official documents include a third gender category (1 for yes, 2 for no). The majority of individuals do not consider that official documents should include a third gender category in the official documents.
+3.  **contact_transgendertranssexual**: represents whether the interviewee is friend with transgender or transsexual individuals (1 for yes, 2 for no). The majority of them are not friends with a transgender or transexual individual.
+4.  **myvoicecounts_country:** represents whether individuals feel their voice counts in their country (1 for totally agree and 4 for totally disagree). Category 2 has a higher frequency, implying that individuals more frequently feel that their voice count in their country.
+5.  **censusinfo_sexualorientation**: collects information about whether individuals are in favour or opposed to providing anonymous information about their sexual orientation in census or statistical surveys. Being 1 and 2 the most frequent categories, people tend to be in favor of giving this type of information in census or surveys.
+6.  **actsagainstdiscrim_publiclydefended**: represents whether the interviewee has publicly defended someone that was victim of discriminitation (1 for yes, 2 for no). The first quartile being 2 implies that around 75% of the people did not publicly defend people victim of discrimination in the last year.
+7.  **lgbstatements_samerightsashetero**: represents attitudes towards granting LGBT individuals the same rights as heterosexual individuals, categorized into four levels (1 to 4), one being totally agree and four being totally disagree. Most of the people agrees that LGBT individuals should be granted the same rights as heterosexual individuals.
+8.  **schoolinformdiv_beingintersex**: indicates whether schools should provide information about being intersex (1 for totally agree, 4 for totally disagree). Most of the people consider that\*\* schools should provide information about being intersexual.
+9.  **discrim_sexualorientation, discrim_gender, discrim_beingintersex**. These variables represent the degree of discrimination based on sexual orientation, gender, and being intersex, respectively, categorized into five levels (1 to 5, 1 being very widespread and 5 very rare). Across all of these variables, people perceive moderate levels of discrimination. However, regarding gender discrimination, the tendency is towards considering it to be very rare, while concerning discrimination based on sexual orientation, the tendency is the opposite, as people perceive it to be fairly widespread.
+10. **loverelchild_personwsamesex, loverelchild_transgender, loverelchild_intersex.** This variable ranges from 1. uncomfortable, to 3. comfortable (4. indifferent). Most of the people would feel uncomfortable with their children being in a relationship with someone transgender or intersexual. However, if the situation involved their child being in a relationship with someone of the same sex, the most frequent response would be feeling comfortable. This indicates a disparity in societal acceptance, with greater comfort observed in same-sex relationships compared to relationships involving transgender or intersex individuals.
+11. **colleagues_homosexualbisexual, colleagues_transgender, colleagues_intersex**, most of the people would feel uncomfortable if they had to work with homosexual, transgender or intersexual colleague.
+12. **electpol_woman, electpol_intersex**: these variables range from 1. uncomfortable, to 3. comfortable. More than 75% of the interviewees would feel comfortable with a woman in the highest elected political position. However, when considering a transgender individual in this role, the variability in the data changes. Although the majority would still feel comfortable, there's an increase in the frequency within the "comfortable" category
+13. **showaffectionpublic_twowomen**: there is a notable divergence in opinions: while a significant portion of individuals would feel comfortable with two women showing affection in public, there is also a considerable frequency of individuals who would feel uncomfortable with this scenario.
+
+```{r}
+# Summary statistics of individual-level variables
+
+sum_dem <- names(summary_demographics)
+sum_cntr <- names(summary_country)
+
+summary_individual <- full_data_red |> 
+  dplyr::select(-sum_dem, -sum_cntr) |> 
+  summary()
+
+summary_individual
+
+```
+
+#### Visualization
+
+**Bar plots for discrete variables**
+
+```{r}
+#| warning: false
+
+
+# Deleting character and continous variables
+numeric <- full_data_red |> 
+  dplyr::select(-c(country, 
+                   ageexact,
+                   freedom_expresion_index,
+                   lgbt_policy_index,
+                   gender_marker_change,
+                   gdi))
+
+# Split variable names into smaller groups before plotting
+num_vars <- names(numeric)
+num_vars_split <- split(num_vars, ceiling(seq_along(num_vars)/9)) 
+
+# List to store the bar plot grids
+barplot_grids <- list()
+
+# Loop through each group of variables and create bar plot grids
+for (group in num_vars_split) {
+  group_barplots <- list()
+  
+  # Loop through each variable in the group
+  for (var in group) {
+    group_barplots[[var]] <- ggplot(numeric, aes_string(x = var)) +
+      geom_bar(fill = "skyblue", color = "black") +
+      theme_minimal()
+  }
+  
+  group_grid <- plot_grid(plotlist = group_barplots, nrow = 3, ncol = 3)
+  
+  barplot_grids[[as.character(group[[1]])]] <- group_grid
+}
+
+# Visualize the bar plot grids
+for (grid in barplot_grids) {
+  print(grid)
+}
+
+```
+
+**Histograms for continuous variables**
+
+```{r}
+# Deleting character and continous variables
+continuous <- full_data_red |> 
+  dplyr::select(c(ageexact,
+                  freedom_expresion_index,
+                  lgbt_policy_index,
+                  gender_marker_change,
+                  gdi))
+
+# Initialize an empty list to store the histogram grids
+histogram_plots <- list()
+
+# Loop through each continuous variable and create histogram plots
+for (var in names(continuous)) {
+  histogram_plots[[var]] <- ggplot(continuous, aes(x = !!as.name(var))) +
+    geom_histogram(fill = "skyblue", color = "black") +
+    theme_minimal()
+}
+
+# Visualize the histogram plots
+plot_grid(plotlist = histogram_plots, nrow = 3, ncol = 2)
+```
+
+### Bivariate and multivariate analysis
+
+**What are the distribution patterns of support for transgender individuals changing official documents across different countries?**
+
+There is a significant variation in support levels for transgender individuals changing official documents across different countries. For example, in Austria, Belgium, Denmark, and other countries, the majority of respondents are in favor of this change, with percentages ranging from 60% to 85%. However, in Bulgaria, Hungary, Romania, and other countries, the proportion of support is much lower, generally below 30%.
+
+This contrast in support levels could be attributed to a range of country-level factors, including cultural norms, legal systems, socioeconomic issues, and perceptions of LGBTI rights.
+
+```{r}
+
+
+CrossTable(full_data_red$country, full_data_red$transgender_changecivildocuments, 
+           digits = 2, 
+           expected = F, 
+           asresid = , 
+           chisq = TRUE, 
+           prop.chisq = F, 
+           format = "SPSS")
+
+```
+
+**How do country-level policies influence the acceptance of transgender individuals being able to change their civil documents?**
+
+In the country-level variable analysis, freedom of expression, LGBT policies, gender development index (GDI), and constitutional protections against discrimination are significant factors influencing the acceptance of transgender individuals to change their official documents:
+
+-   An increase in the freedom of expression index is positively associated with a higher level of acceptance for transgender individuals to change their official documents. Therefore, in countries where there is greater freedom of expression and a more diverse range of political perspectives, it is likely that there will be greater acceptance of transgender individuals.
+
+-   An increase in the LGBT policy index is positively associated with greater acceptance of transgender individuals to change their official documents. When there are policies guaranteeing rights for LGBT people, such as the legality of same-sex acts, marriage, and gender changes, society tends to be more open to allowing transgender individuals to change their official documents.
+
+-   An increase in the Gender Development Index is positively associated with greater acceptance of transgender individuals to change their official documents. This indicates that in countries with lower gender disparities in areas such as health, education, and income, there is likely to be greater acceptance of transgender individuals.
+
+-   The presence of constitutional protections against LGBT discrimination is inversely related to the acceptance of transgender individuals changing their official documents. This finding, while unexpected, suggests that the existence of constitutional protections does not necessarily translate into widespread acceptance of transgender individuals in all aspects of society.
+
+```{r}
+# Making transgender_changecivildocuments binary
+full_data_red$transgender_cvd_binary <- ifelse(full_data_red$transgender_changecivildocuments == 1, 1, 0)
+
+# Logistic reg
+logit_model <- glm(transgender_cvd_binary ~ lgbt_policy_index + 
+                     freedom_expresion_index + 
+                     gender_marker_change + 
+                     gdi + 
+                     constitutional_protections_against_discrimination, 
+                   data = full_data_red, 
+                   family = binomial)
+summary(logit_model)
+
+full_data_red<- full_data_red |> 
+  dplyr::select(-transgender_cvd_binary)
+
+```
+
+MAP some variables
+
+```{r}
+# Function that calculates the mode
+Mode <- function(x, na.rm = FALSE) {
+  if (na.rm) {
+    x <- x[!is.na(x)]
+  }
+  ux <- unique(x)
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+# Group data by country and calculate the mode of transgender_changecivildocuments
+data_map <- full_data_red |> 
+  group_by(country) |> 
+  mutate(lgb_ashetero_recoded = ifelse(lgbstatements_samerightsashetero %in% c(1, 2), 
+                                       "agree", "disagree"),
+         religion_recoded = case_when(
+           religion_denomination == 1 ~ "catholic",
+           religion_denomination == 2 ~ "orthodox christian",
+           religion_denomination == 3 ~ "protestant",
+           religion_denomination == 4 ~ "other christian",
+           religion_denomination == 5 ~ "jewish",
+           religion_denomination == 6 ~ "muslim - shia",
+           religion_denomination == 7 ~ "muslim - sunni",
+           religion_denomination == 8 ~ "other muslim",
+           religion_denomination == 9 ~ "sikh",
+           religion_denomination == 10 ~ "buddhist",
+           religion_denomination == 11 ~ "hindu",
+           religion_denomination == 12 ~ "atheist",
+           religion_denomination == 13 ~ "non believer or agnostic",
+           religion_denomination == 14 ~ "other",
+           religion_denomination == 15 ~ "refusal")) |> 
+  summarize(transgender_cvd_mode = Mode(transgender_changecivildocuments),
+           lgb_ashetero_mode = Mode(lgb_ashetero_recoded),
+           religion_mode = Mode(religion_recoded)) |> 
+  mutate(transgender_cvd_mode = ifelse(transgender_cvd_mode == 1, "yes", "no"))
+
+```
+
+```{r}
+#| eval: false
+
+# Install necessary packages if needed
+if (!requireNamespace("leaflet", quietly = TRUE)) {
+  install.packages("leaflet")
+}
+if (!requireNamespace("rnaturalearth", quietly = TRUE)) {
+  install.packages("rnaturalearth")
+}
+if (!requireNamespace("rnaturalearthdata", quietly = TRUE)) {
+  install.packages("rnaturalearthdata")
+}
+
+
+# Load world map data
+world_map <- ne_countries(continent = "europe", returnclass = "sf")
+
+# Merge with our data
+world_map <- left_join(world_map, data_map, 
+                       by = c("name" = "country"))
+
+# Create popup content for each country
+popup_content <- lapply(1:nrow(world_map), function(i) {
+  country <- world_map$name[i]
+  transgender_cvd <- world_map$transgender_cvd_mode[i]
+  lgb_rights <- world_map$lgb_ashetero_mode[i]
+  religion <- world_map$religion_mode[i]
+  variable <- world_map$variable[i]
+  
+  content <- paste("<strong>Country:</strong>", country, "<br>",
+                   "<strong>Transgender official docs:</strong>", transgender_cvd, "<br>",
+                   "<strong>LGB rights:</strong>", lgb_rights, "<br>",
+                   "<strong>Religion:</strong>", religion, "<br>")
+  return(content)
+})
+
+
+
+# Gradient color palette based on value
+colors <- colorFactor(palette = "viridis", domain = world_map$transgender_cvd_mode)
+
+
+# Map
+leaflet(data = world_map) %>%
+  setView(lng = 10, lat = 50, zoom = 4) %>%
+  addProviderTiles("OpenStreetMap.Mapnik") %>%
+  addPolygons(fillColor = ~colors(transgender_cvd_mode),
+              fillOpacity = 0.7,
+              weight = 1,
+              popup = popup_content,
+              highlightOptions = highlightOptions(color = "black", 
+                                                  weight = 2, 
+                                                  bringToFront = TRUE)) 
+    setMaxBounds(lng1 = -20, lat1 = 35, lng2 = 40, lat2 = 70)
+
+    
+full_data_red |> 
+  distinct(countrycode)
+
+```
+
+## Feature engineering
+
+```{r}
+  
+
+data <- full_data_red %>%
+  rowwise() %>%
+  mutate(actsagainstdiscrim = mean(c(as.numeric(actsagainstdiscrim_sharedcontent),
+                                     as.numeric(actsagainstdiscrim_publiclydefended),
+                                     as.numeric(actsagainstdiscrim_publiclyraisedissue)), na.rm = TRUE),
+         colleagues = mean(c(as.numeric(colleagues_homosexualbisexual),
+                             as.numeric(colleagues_transgender),
+                             as.numeric(colleagues_intersex)), na.rm = TRUE),
+         loverelchild = mean(c(as.numeric(loverelchild_personwsamesexaschild),
+                               as.numeric(loverelchild_transgender),
+                               as.numeric(loverelchild_intersex)), na.rm = TRUE),
+         discrim = mean(c(as.numeric(discrim_sexualorientation),
+                          as.numeric(discrim_gender),
+                          as.numeric(discrim_beingintersex)), na.rm = TRUE)) 
+
+data<- data|>
+  dplyr::select(-c(actsagainstdiscrim_sharedcontent,
+                   actsagainstdiscrim_publiclydefended,
+                   actsagainstdiscrim_publiclyraisedissue,
+                   colleagues_homosexualbisexual,
+                   colleagues_transgender,
+                   colleagues_intersex,
+                   loverelchild_personwsamesexaschild,
+                   loverelchild_transgender,
+                   loverelchild_intersex,
+                   lgbstatements_samerightsashetero,
+                   discrim_sexualorientation,
+                          discrim_gender,
+                          discrim_beingintersex,
+                   ageedu_recode5cat,
+                   religion_denomination))
+
+
+```
+
+## PCA
+
+```{r running PCA}
+#| warning: false
+
+
+Data <- apply(data, 2, as.numeric)
+Data<- as.data.frame(Data)
+
+Data <- Data |> 
+  dplyr::select(-countrycode, -country)
+
+pca = prcomp(Data, scale=T)
+
+summary(pca)
+
+```
+
+```{r getting summary and description of PCA}
+# Extract the proportion of variance explained from the standard deviation
+
+variance_explained <- (pca$sdev^2) / sum(pca$sdev^2)
+
+# Create a data frame for the histogram
+variance_data <- data.frame(
+  Principal_Component = paste("PC", 1:length(variance_explained)),
+  Proportion_of_Variance = variance_explained
+)
+
+# Reorder the data frame by the proportion of variance explained
+variance_data <-
+  variance_data[order(variance_data$Proportion_of_Variance, decreasing = TRUE), ]
+
+variance_data$Cumulative_Variance <- cumsum(variance_data$Proportion_of_Variance)*100
+
+# Create a histogram 
+ggplot(variance_data, aes(x = reorder(Principal_Component, -Proportion_of_Variance), y = Proportion_of_Variance)) +
+  geom_bar(stat = "identity", fill = "skyblue", color = "black") +
+  labs(title = "Proportion of Variance Explained by Principal Components", x = "Principal Component", y = "Proportion of Variance") +
+  theme_minimal()
+
+```
+
+```{r PCA scree plot}
+
+fviz_screeplot(pca, addlabels = TRUE)
+```
+
+```{r table of variance explained}
+variance_data
+```
+
+Interpretation:
+
+-   PC1 has the highest standard deviation, meaning it captures the most variation in the data. It explains 19.86% of the total variance alone.
+
+-   The cumulative proportion of variance explains how much of the total variance is explained as you add more principal components. By PC5, you've covered 44.28% of the variance, and by PC10, you've covered 63.75%.
+
+-   Generally, you would select the number of principal components that explain a satisfactory amount of variance in your data, often aiming for a cumulative proportion above a certain threshold (e.g., 70-90%).
+
+-   In this case, it seems like the first 5 principal components contribute the most to the variance. You may consider retaining those and dropping the rest if you're interested in dimensionality reduction or feature selection.
+
+```{r explaining PC1}
+barplot(pca$rotation[,1], 
+        las=2, 
+        col="darkblue")
+```
+
+```{r biplot to interpret all loadings}
+fviz_pca_biplot(pca,
+                label="var",
+                col.var = "red")
+```
+
+| Variable                                          | PC1 Description                                                                  | PC2 Description                                                          | PC3 Description                                                                    |
+|------------------|------------------|------------------|------------------|
+| freedom_expresion_index                           | +0.364: Strong support for freedom of expression                                 | -0.455: Conservative stance on expression rights                         | +0.193: Mixed attitudes towards expression rights                                  |
+| constitutional_protections_against_discrimination | +0.017: Advocates for constitutional protections                                 | -0.236: Skeptical towards legal protections                              | +0.290: Diverse views on legal protections                                         |
+| lgbt_policy_index                                 | +0.530: Advocates for comprehensive LGBT policies                                | -0.658: Reluctant towards LGBT policy reforms                            | +0.276: Mixed attitudes towards LGBT policies                                      |
+| gender_marker_change                              | +0.034: Mixed attitudes towards gender identity                                  | -0.008: Mixed attitudes towards gender identity                          | -0.028: Mixed attitudes towards gender identity                                    |
+| gdi                                               | -0.306: Less technologically engaged                                             | +0.317: Technologically engaged                                          | -0.077: Varied engagement with technology                                          |
+| transgender_changecivildocuments                  | -0.546: Supports changes in civil documents                                      | +0.980: Resistant to changes in civil documents                          | -0.678: Mixed views on civil document changes                                      |
+| gender                                            | -0.004: Varied attitudes towards gender                                          | -0.009: Varied attitudes towards gender                                  | +0.017: Varied attitudes towards gender                                            |
+| actsagainstdiscrim_joinedassociationcampaign      | -0.234: Active in campaigns against discrimination                               | +0.116: Advocates for discrimination campaigns                           | +0.105: Advocates for discrimination campaigns                                     |
+| officialdocuments_includethirdgend                | -0.406: Supports inclusion of third gender in documents                          | +0.703: Resistant to inclusion of third gender                           | -0.470: Varied attitudes towards inclusion of third gender                         |
+| contact_transgendertranssexual                    | -0.229: Less contact with transgender individuals                                | +0.172: More contact with transgender individuals                        | +0.027: Varied contact with transgender individuals                                |
+| divworkprom_beingintersex                         | -0.705: Less support for workplace inclusion of intersex individuals             | +0.127: Supports workplace inclusion of intersex individuals             | +0.610: Varied support for workplace inclusion of intersex individuals             |
+| internetuse_index                                 | -0.408: Less engagement with the internet                                        | +0.307: More engagement with the internet                                | +0.048: Varied engagement with the internet                                        |
+| maritalstatus                                     | +0.007: Varied marital status                                                    | -0.018: Varied marital status                                            | +0.017: Varied marital status                                                      |
+| electpol_woman                                    | +0.209: Supportive of women in politics                                          | -0.257: Skeptical of women in politics                                   | +0.105: Varied attitudes towards women in politics                                 |
+| electpol_intersex                                 | +0.577: Supportive of intersex individuals in politics                           | -0.684: Skeptical of intersex individuals in politics                    | +0.257: Varied attitudes towards intersex individuals in politics                  |
+| phoneavailable_summarized                         | +0.096: Phone availability for communication                                     | -0.219: Limited phone availability for communication                     | +0.180: Varied phone availability for communication                                |
+| myvoicecounts_country                             | -0.312: Feels voice counts in the country                                        | +0.316: Feels voice doesn't count in the country                         | -0.069: Varied feelings about voice counting in the country                        |
+| censusinfo_sexualorientation                      | -0.284: Supports inclusion of sexual orientation in census                       | +0.277: Resistant to inclusion of sexual orientation in census           | -0.049: Varied attitudes towards inclusion of sexual orientation in census         |
+| schoolinformdiv_beingintersex                     | -0.483: Less support for inclusion of intersex individuals in school information | +0.611: Supports inclusion of intersex individuals in school information | -0.265: Varied support for inclusion of intersex individuals in school information |
+| showaffectionpublic_twowomen                      | +0.610: Accepting of affection between two women in public                       | -0.676: Resistant to affection between two women in public               | +0.211: Varied attitudes towards affection between two women in public             |
+| divworkprom_gender                                | -0.601: Less support for workplace gender diversity                              | +0.150: Supports workplace gender diversity                              | +0.465: Varied support for workplace gender diversity                              |
+| divworkprom_sexualorientation                     | -0.798: Less support for workplace sexual orientation diversity                  | +0.195: Supports workplace sexual orientation diversity                  | +0.623: Varied support for workplace sexual orientation diversity                  |
+| divworkprom_beingtransgender                      | -0.714: Less support for workplace transgender diversity                         | +0.139: Supports workplace transgender diversity                         | +0.604: Varied support for workplace transgender diversity                         |
+| leftrightplacement                                | -0.158: Varied political placement                                               | +0.168: Varied political placement                                       | -0.046: Varied political placement                                                 |
+| ageexact                                          | -0.295: Varied age                                                               | +0.096: Varied age                                                       | +0.199: Varied age                                                                 |
+| transgender_cvd_binary                            | +0.546: Supports changes in civil documents                                      | -0.980: Resistant to changes in civil documents                          | +0.678: Mixed views on civil document changes                                      |
+| actsagainstdiscrim_colleagues                     | -0.482: Active in campaigns against discrimination in the workplace              | +0.278: Advocates for discrimination campaigns in the workplace          | +0.167: Advocates for discrimination campaigns in the workplace                    |
+| loverelchild                                      | +0.677: Supportive of relationships with children                                | -0.692: Skeptical of relationships with children                         | +0.158: Varied attitudes towards relationships with children                       |
+| discrim                                           | -0.150: Varied experiences of discrimination                                     | +0.180: Varied experiences of discrimination                             | -0.070: Varied experiences of discrimination                                       |
+
+## Clustering
+
+```         
+According to the majority rule, the best number of clusters is  3 
+```
+
+```{r}
+fit = kmeans(Data, centers = 3, nstart = 100)
+
+centers=fit$centers
+
+centers
+
+fviz_cluster(fit, 
+             data = Data, 
+             geom = c("point"),
+             ellipse.type = 'norm', pointsize=1)+
+  theme_minimal()+
+  scale_fill_brewer(palette="Paired")
+```
+
+```{r}
+pca_scores <- data.frame(pca$x[, 1:3])
+
+
+kmeans_clust <- kmeans(pca_scores,        
+                        centers = 3)
+
+fviz_pca_biplot(pca,
+                col.var = "black",
+                alpha.var = 0.6,
+                label = "all",
+                habillage = kmeans_clust$cluster,
+                repel = TRUE,
+                addEllipses = TRUE,
+                ellipse.type = "convex",
+                labelsize = 2) +
+      guides(color = guide_legend(override.aes = list(label = ""))) +
+      labs(x ="PC1 (25.2%)", y = "PC2 (14.1%)")
+```
+
+```{r describing the clusters }
+
+cluster_means <- as.data.frame(fit$centers) %>%
+  rownames_to_column(var = "cluster") %>%
+  pivot_longer(cols = -cluster, names_to = "variable", values_to = "cluster_mean") %>%
+  mutate(cluster = factor(cluster))
+
+
+# Now, you can create the plot using ggplot
+ggplot(cluster_means, 
+       aes(x = variable, 
+           y = cluster_mean, 
+           fill = factor(cluster))) +
+  geom_bar(stat = "identity", position = "dodge", color = "white") +
+  labs(title = "Cluster Centers",
+       x = "Variable",
+       y = "Value") +
+  scale_fill_manual(values = c("darkblue", "darkgreen", "darkred")) +
+  theme_minimal()+
+  coord_flip()
+```
+
+**Cluster 1:** Support towards transgender_changecivildocuments: Moderate to low (-0.546) Political Ideology (leftrightplacement): Near neutral (-0.158) Age (ageexact): Moderately negative (-0.295) Other Variables: Freedom of Expression Index: Moderate (0.364) Constitutional Protections Against Discrimination: Low (0.017) LGBT Policy Index: Moderate (0.530) Gender Marker Change: Slightly positive (0.034) Gender: Near neutral (-0.004) Acts Against Discrimination (Joining Association/Campaign): Negative (-0.234) Official Documents Include Third Gender: Negative (-0.406) Internet Use Index: Moderate (-0.408) Marital Status: Near neutral (0.007)
+
+**Cluster 2:** Support towards transgender_changecivildocuments: High (0.980) Political Ideology (leftrightplacement): Near neutral (0.168) Age (ageexact): Slightly positive (0.096) Other Variables: Freedom of Expression Index: Low (-0.455) Constitutional Protections Against Discrimination: Low (-0.236) LGBT Policy Index: Low (-0.658) Gender Marker Change: Slightly negative (-0.008) Gender: Near neutral (-0.009) Acts Against Discrimination (Joining Association/Campaign): Positive (0.116) Official Documents Include Third Gender: Strongly positive (0.703) Internet Use Index: Moderate (0.307) Marital Status: Slightly negative (-0.018)
+
+**Cluster 3:** Support towards transgender_changecivildocuments: Moderate (0.678) Political Ideology (leftrightplacement): Near neutral (-0.046) Age (ageexact): Moderately positive (0.199) Other Variables: Freedom of Expression Index: Moderate (0.193) Constitutional Protections Against Discrimination: Moderate (0.290) LGBT Policy Index: Moderate (0.276) Gender Marker Change: Slightly negative (-0.028) Gender: Slightly positive (0.017) Acts Against Discrimination (Joining Association/Campaign): Positive (0.105) Official Documents Include Third Gender: Negative (-0.470) Internet Use Index: Low (0.048) Marital Status: Slightly positive (0.017)
+
+**Summary:** Cluster 2 exhibits the highest support for transgender rights, with a very high loading for "transgender_changecivildocuments" (0.980). This cluster consists of individuals with a relatively neutral political ideology and slightly older than average.
+
+Cluster 3 also shows moderate support for transgender rights, with a substantial loading for "transgender_changecivildocuments" (0.678). This cluster similarly consists of individuals with a relatively neutral political ideology but slightly older than average.
+
+Cluster 1 demonstrates the lowest support for transgender rights, with a negative loading for "transgender_changecivildocuments" (-0.546). This cluster also consists of individuals with a relatively neutral political ideology but slightly younger than average.
+
+## Regression and machine learning models
+
+### Multilevel models
+
+As the data has a multilevel structure, that is, observations are organised in nested levels with each level representing a different unit of analysis, a multilevel or hierarchical model is the most appropriate model . Multilevel models can distinguish between both within-group variation (variation within the same higher-level unit) and between-group variation (variation between different higher-level units) which allows for the estimation of predictors within different levels of the hierarchy. The data utilized in this assignment contains two levels: the individuals level (the lower level) and the country level (the higher level). The country level variables: c*onstitutional_protections_against_discrimination, lgbt_policy_index, gender_marker_change, gdi* and *countrycode* are specified as the random effects in the model and all survey variables as fixed effect. This multilevel model will allow us to create a model with differing intercepts for the higher level variables and interpret the coefficients of the lower level variables free from any effect of the higher level variables.
+
+#### Splitting data set and scaling numerical variables
+
+In this section, the numerical variables are scaled to enhance the workings of the multilevel model. Then, the data is split into a test and training data set. A list of fixed effect variables is computed to facilitate implementation of the fixed effect variables in the following section
+
+```{r}
+
+# Delete variables with too many categories
+data_s<- full_data_red |> 
+ dplyr::select(-internetuse_index, -religion_denomination)
+
+
+# Identify numeric columns
+numeric_cols <- sapply(data_s, is.numeric)
+
+# Scale only numeric columns
+scaled_numeric <- scale(data_s[, numeric_cols])
+
+# Combine scaled numeric columns with non-numeric columns
+data <- cbind(scaled_numeric,data_s[!numeric_cols])
+
+# Partition the data into a test and training data set
+set.seed(123)  
+train_index <- createDataPartition(data_s$transgender_changecivildocuments, p = 0.8, list = FALSE)
+train_data <- data_s[train_index, ]
+test_data <- data_s[-train_index, ]
+
+# Grouping the fixed effect variables
+fixed_var <- data_s |> 
+  dplyr::select(-freedom_expresion_index, 
+         -constitutional_protections_against_discrimination,
+         -lgbt_policy_index,
+         -gender_marker_change,
+         -gdi,
+         -countrycode,
+         -country,
+         -transgender_changecivildocuments)
+
+# Creating a list of ficed effect variables
+fixed_var<- names(fixed_var)
+```
+
+#### Running multiple models with cross-validation
+
+In the following chunk, multiple multilevel models are specified and run using the cv() function from the cv package
+
+```{r}
+#| warning: false
+
+train_data$countrycode <- as.factor(train_data$countrycode)
+
+
+# Create different formulas to be included in the multilevel model
+# Full model
+formula <- as.formula(paste("transgender_changecivildocuments ~", paste(fixed_var, collapse = " + "), "+ (1|countrycode) + (1|gdi) + (1|freedom_expresion_index)+ (1|constitutional_protections_against_discrimination) + (1|lgbt_policy_index)+
+(1|gender_marker_change) "))
+
+#All fixed effect variables, only country code and gdi as random effect variables
+formula_2 <- as.formula(paste("transgender_changecivildocuments ~", paste(fixed_var, collapse = " + "), "+ (1|countrycode) + (1|gdi)"))
+
+#All fixed effect variables, only country code and freedom_expresion_index as random effect variables
+formula_3 <- as.formula(paste("transgender_changecivildocuments ~", paste(fixed_var, collapse = " + "), "+ (1|countrycode) + (1|freedom_expresion_index)"))
+
+#All fixed effect variables, only country code and constitutional_protections_against_discrimination as random effect variables
+formula_4 <- as.formula(paste("transgender_changecivildocuments ~", paste(fixed_var, collapse = " + "), "+ (1|countrycode) + (1|constitutional_protections_against_discrimination)"))
+
+#All fixed effect variables, only country code and lgbt_policy_index as random effect variables
+formula_5 <- as.formula(paste("transgender_changecivildocuments ~", paste(fixed_var, collapse = " + "), "+ (1|countrycode) + (1|lgbt_policy_index) "))
+
+#All fixed effect variables, only country code and gender_marker_chang as random effect variables
+formula_6 <- as.formula(paste("transgender_changecivildocuments ~", paste(fixed_var, collapse = " + "), "+ (1|countrycode) +
+(1|gender_marker_change) "))
+
+#Specifying the models
+model_1 <- glmmTMB(formula, data = train_data, family = binomial)
+model_2 <- glmmTMB(formula, data = train_data, family = binomial(link = "probit"))
+model_3 <- glmmTMB(formula, data = train_data, family = binomial(link = "cloglog"))
+model_4 <- glmmTMB(formula_2, data = train_data, family = binomial)
+model_5 <- glmmTMB(formula_3, data = train_data, family = binomial)
+model_6 <- glmmTMB(formula_4, data = train_data, family = binomial)
+model_7 <- glmmTMB(formula_5, data = train_data, family = binomial)
+model_8 <- glmmTMB(formula_6, data = train_data, family = binomial)
+
+
+#Combining the models in a 'modlist' object
+model <- models(model_1,model_2, model_3, model_4, model_5, model_6, model_7, model_8)
+
+
+#Running all models with cross validation
+model_cv <-cv(
+model,
+data = train_data,
+criterion = mse,
+k = 3, #set higher 
+reps = 1,
+level = 0.95,
+ncores = 1)
+
+
+```
+
+#### Selecting the best model
+
+The best model is model_5 as the *bias-adjusted cross-validation criterion* which is set to *mean squared error (mse)* shows the lowest results. However, as this model is not significantly better (mse is only 0.001% lower) than the full model (model_1), the full model, this model will be interpreted. Unfortunately no predictions can be made based on this model as the 'cv' package does not allow it.
+
+```{r}
+
+print(model_cv)
+
+```
+
+#### Interpretation of coefficients
+
+The variance and the standard deviation of the random effects signify the differences and the standardized differences among the units of the random effect variable respectively. As the all random effect variables are measured in different scales only the standard deviations are interpreted. The variables *countrycode, freedom_expresion_index* and *gender_marker_change* show considerable high standard deviations indicating high variability in intercepts across different levels of this variable. In other words, we can conclude that the values or levels of these variables differ significantly from one another.
+
+Note that all coefficients are interpreted holding all other variables constant and only the statistically significant variables are interpreted. When log-odds are positive, they signify a higher likelihood of voting 'no'
+
+1.  **gender2:** For females, the log-odds of them voting 'no' for transgender individuals to change their civil documents have lower log-odds (-0.35) compared to males.
+2.  **actsagainstdiscrim_sharedcontent2**: For individuals who have not shared content against discrimination, the log-odds of them voting 'no' for transgender individuals to change their civil documents are lower (-0.90) compared to those who have.
+3.  **officialdocuments_includethirdgend2**: Individuals who do not believe official documents should include a third gender have a much higher log-odds (3.13) of voting 'no' for transgender individuals to change their civil documents compared to those who do believe official documents should include a third gender.
+4.  **contact_transgendertranssexual2**: Individuals who have not had contact with transgender or transsexual individuals have higher log-odds (0.64 ) of voting 'no' for transgender individuals to change their civil documents compared to those who have had such contact.
+5.  **contact_transgendertranssexual3**: Individuals who have voted 'don´t know' to the the item if they ahve hadc contact with transgender or transsexual individuals have even higher log-odds (1.83) of voting 'no' for transgender individuals to change their civil documents compared to those who have had such contact.
+6.  **colleagues_homosexualbisexual3**: Individuals who have voted 'totally comfortable' on the item asking if they are comfortable with having homosexual or bisexual colleagues at work have lower log-odds (-0.77) of voting 'no' for transgender individuals to change their civil documents compared to those who voted 'totally uncomfortable'.
+7.  **colleagues_transgender4**: Individuals who have voted that they are indifferent to having transgender colleagues at work have significantly lower log-odds (-3.40) of voting 'no' for transgender individuals to change their civil documents compared to those who have voted they are totally uncomfortable.
+8.  **loverelchild_personwsamesexaschild4**: Individuals who vote 'indifferent' to the statement if they would be comfortable with their child having a same-sex parter significantly have lower log-odds ( -2.88 ) of voting 'no' for transgender individuals to change their civil documents compared to those who vote 'totally comfortable'.
+9.  **showaffectionpublic_twowomen**: Individuals who agree that they are comfortable with two women showing affection in public have lower log-odds ( -0.30 ) of voting 'no' for transgender individuals to change their civil documents compared to those who are uncomfortable.
+10. **lgbstatements_samerightsashetero**: Individuals with higher disgreement with regards to the statement that LGBTQ+ individuals should have the same rights as heterosexual individuals have higher log-odds ( 0.30) of voting 'no' for transgender individuals to change their civil documents.
+11. **schoolinformdiv_beingintersex**: Individuals with higher disagreement on the item if schools should inform about being intersex have higher log-odds (0.23) of voting 'no' for transgender individuals to change their civil documents.
+12. **discrim_sexualorientation**: Individuals who are more leaning towards not believing discrimination based on sexual orientation happens in their country have higher log-odds (0.24) of voting 'no' for transgender individuals to change their civil documents.
+
+In other words, respondents who are **less** likely to vote 'no' for transgender individuals to change their civil documents are:
+
+-   women compared to men,
+
+-   individuals who have not shared content against discrimination compared to those who have,
+
+-   Individuals who have voted 'totally comfortable' on the item asking if they are comfortable with having homosexual or bisexual colleagues compared to those who are totally uncomfortable,
+
+-   Individuals who have voted that they are indifferent to having transgender colleagues compared to compared to those who have voted they are totally uncomfortable,
+
+-   Individuals who vote 'indifferent' to the statement if they would be comfortable with their child having a same-sex partner compared to those who vote 'totally comfortable',
+
+-   Individuals who agree that they are comfortable with two women showing affection in public compared to those who are uncomfortable.
+
+People who are **more** likely to vote 'no' for transgender individuals to change their civil documents are:
+
+-    Individuals who do not believe official documents should include a third gender compared to those who do believe official documents should include a third gender,
+
+-   Individuals who have not had contact with transgender or transsexual individuals compared to to those who have had such contact,
+
+-   Individuals with higher disagreement with regards to the statement that LGBTQ+ individuals should have the same rights as heterosexual individuals,
+
+-   Individuals with higher disagreement on the item if schools should inform about being intersex,
+
+-   Individuals who are more leaning towards not believing discrimination based on sexual orientation happens in their country.
+
+```{r}
+
+summary(model_1)
+
+```
+
+### Machine learning models
+
+Three machine learning algorithms: random forest, K-Nearest Neighbour and Recursive Partitioning and Regression Trees are utilized to predict the target variable *transgender_changecivildocuments.*
+
+#### Splitting the data set
+
+```{r}
+#| output: false
+
+# Delete variables with too many categories
+data_m<- data
+
+levels(data_m$transgender_changecivildocuments)
+
+# Rename the levels
+levels(data_m$transgender_changecivildocuments) <- c("yes", "no")
+
+# Split the data into test and train data
+set.seed(123)  
+train_index <- createDataPartition(data_m$transgender_changecivildocuments, p = 0.8, list = FALSE)
+train_data <- data_m[train_index, ]
+test_data <- data_m[-train_index, ]
+
+```
+
+#### The control function
+
+```{r}
+#| output: false
+
+
+#Specifying the control function
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     classProbs = T,
+                     verboseIter = T)
+
+```
+
+#### Random Forest
+
+```{r}
+#| output: false
+#| warning: false
+
+
+# Define a grid for the hyper-parameters
+param_grid = expand.grid(gamma = seq(0, 1, 0.1), lambda = seq(0.1, 0.9, 0.1)) 
+
+# Specify mtry
+mtry <- sqrt(ncol(train_data))
+# Specify the tunegrid using mtry
+tunegrid <- expand.grid(.mtry=mtry)
+
+set.seed(123)
+# Run the random forest model using the train() function from the Caret package
+RfFit <- train(transgender_changecivildocuments ~ ., 
+                method ="rf", 
+                data = train_data,
+                preProcess = c("center", "scale"),
+                tuneGrid=tunegrid, 
+                metric="Accuracy", 
+                trControl = ctrl)
+
+
+```
+
+#### k-Nearest Neighbour
+
+```{r}
+#| output: false
+#| warning: false
+
+
+# Run the k_Nearest Neighbour model using the train() function from the Caret package
+set.seed(123)
+knnFit <- train(transgender_changecivildocuments ~ ., 
+                method ="knn", 
+                data = train_data,
+                preProcess = c("center", "scale"),
+                metric="Accuracy", 
+                trControl = ctrl)
+
+
+```
+
+#### Recursive Partitioning and Regression Trees
+
+```{r}
+#| output: false
+#| warning: false
+
+
+# Run the Recursive Partitioning and Regression Trees model using the train() function from the Caret package
+
+set.seed(123)
+rpartFit <- train(transgender_changecivildocuments ~ ., 
+                method ="rpart", #name of the model
+                data = train_data,
+                preProcess = c("center", "scale"),
+                metric="Accuracy", 
+                trControl = ctrl)
+
+```
+
+### Performance analysis
+
+As both the accuracy and Kappa is highest for the Random Forest model, this model will be selected for the prediction.
+
+```{r}
+
+# Resample results of accuracy metrics models
+resample_results <- resamples(list(RF = RfFit, KNN = knnFit, RPART = rpartFit ))
+
+# Show the accuracy metrics
+summary(resample_results)
+```
+
+```{r}
+dev.off()
+bwplot(resample_results , metric = c("Kappa","Accuracy"))
+
+```
+
+### Prediction and interpretation based on the best model: Random Forest
+
+#### Prediction
+
+In the chunk below, predictions are made using the best model, based on data in the testing set and are consequently compared with the actual values from the test set to compute the final accuracy metrics and the confusion matrix. Hereafter, the predicted values are plotted against the actual values.
+
+The accuracy is rather high (0.80) meaning that the model predicts right in 80% of the cases when given new data. Kappa signifies the level of agreement between the predictions made by a classification model and the actual class labels, corrected for agreement occurring by chance. A kappa value of 0.5703919 suggests a moderate level of agreement. Moreover, the Predicted vs. Actual plot shows the model predicts the new data quite well.
+
+```{r}
+
+
+predictions <- predict(RfFit, newdata = test_data)
+
+# Create confusion matrix
+confusionMatrix(predictions, test_data$transgender_changecivildocuments)$table
+
+# Compute final Accuracy and Kappa
+confusionMatrix(predictions, test_data$transgender_changecivildocuments)$overall[1:2]
+
+
+#Plot the predicted vs the actual values
+ggplot(data = test_data, aes(x = predictions, y = transgender_changecivildocuments)) +
+  geom_jitter(width = 0.2, alpha = 0.5)+
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
+  labs(title = "Predicted vs. Actual",
+       x = "Predicted Values",
+       y = "Actual Values")
+
+```
+
+### Interpretation
+
+#### Variable importance
+
+The plot below shows the 10 most important variables of the model.
+
+```{r}
+
+RfFit_imp <- varImp(RfFit, scale = F) 
+RfFit_imp
+
+
+plot(RfFit_imp, scales = list(y = list(cex = .95)), top=10)
+
+```

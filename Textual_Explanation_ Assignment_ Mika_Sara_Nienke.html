@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.450">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Textual Explanation Assignment</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/clipboard/clipboard.min.js"></script>
+<script src="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/quarto-html/quarto.js"></script>
+<script src="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/quarto-html/popper.min.js"></script>
+<script src="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/quarto-html/anchor.min.js"></script>
+<link href="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="Textual_Explanation_ Assignment_ Mika_Sara_Nienke_files/libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="fullcontent">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Textual Explanation Assignment</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Mikaela DeSmedt, Rianne Nienke Visscher, Sara Cristina Herranz Amado </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="discrimination-in-the-eu" class="level2">
+<h2 class="anchored" data-anchor-id="discrimination-in-the-eu"><strong>Discrimination in the EU</strong></h2>
+<section id="introduction." class="level3">
+<h3 class="anchored" data-anchor-id="introduction."><strong>1. Introduction.</strong></h3>
+<p>Our Eurobarometer data analysis employed a strategic and methodical variable selection that ensured that the variables provided complementary and non-redundant insights, enhancing the robustness and depth of the analysis. By avoiding variables that are too closely related to the target and that were different from one another, the analysis ensures that the insights drawn are genuinely informative and reflective of a wider range of societal and demographic influences.</p>
+<p>The incorporation of country-level data is backed by previous studies on transgender rights support, such as Bowers &amp; Whitley (2020), which showed the negative correlation of political ideology with transgender rights support. This guided the inclusion of variables mirroring each country’s political framework. Further, Dicklitch-Nelson &amp; Rahman’s (2022) findings on institutional, cultural, and political climate, along with Jaramillo Vélez &amp; Carlson’s (2021) focus on legal and family law aspects, informed the selection of variables to capture the complex legal, social, and political milieu that shapes transgender rights.</p>
+<p>By combining both individual-level data with country-level factors, we underscore a nuanced understanding of the socio-political landscape surrounding transgender rights, ensuring the analysis captures a comprehensive picture of the factors influencing public opinion on this issue.</p>
+</section>
+<section id="data-preprocessing" class="level3">
+<h3 class="anchored" data-anchor-id="data-preprocessing"><strong>2. Data preprocessing</strong></h3>
+<ol type="1">
+<li><strong>Feature selection</strong></li>
+</ol>
+<p>Feature selection is the process of identifying and selecting a subset of relevant variables for use in model construction. It aims to improve model performance by eliminating redundant, irrelevant, or noisy data, thereby reducing complexity and enhancing the interpretability of the model. From our original selection, we narrowed even more the number of explanatory variables.</p>
+<p>We started filtering just numeric variables in a new dataset to ensure that the subsequent operations, which are applicable only to numeric data, such as correlation analysis, are performed correctly. We then proceeded to impute the missing values by using random forests. Right after this, we analyzed the correlation matrix to identify pairs of features that have a correlation higher than 0.75 and deleted those variables. This was the cutoff set for high correlations, which can indicate redundancy, as these features might convey similar information, leading to multicollinearity problems.</p>
+<p>For the categorical variables we performed chi-square tests of independence between each factor variable and `transgender_changecivildocuments`, our target feature. We made sure that the errors that could have happen were handed gracefully, returning NA if the test could not be conducted (e.g., due to insufficient data or inappropriate data types). The aggregated results were filtered to retain only those variables with p-values less than or equal to 0.05, suggesting a significant association.&nbsp;</p>
+<p>As an additional note, it’s worth mentioning that we have worked with a sample of the complete database due to technical limitations in data processing. Being a random sample, it is expected that this will not affect the effectiveness of the analysis and the models.</p>
+<ol start="2" type="1">
+<li><strong>Missing values</strong></li>
+</ol>
+<p>Missing data imputation is a crucial step to ensure that the analysis does not get biased or skewed due to missingness, since high levels of missing data can significantly distort statistical analyses and model performance. The target variable was excluded from this process, which is essential to avoid data leakage, maintaining the integrity of predictive modeling, ensuring realistic representations of real-world scenarios and, overall, preserving the accuracy and reliability of predictive models.</p>
+<p>We started by quantifying the proportion of NAs per variable and removing those with more than 50% missing values. For the imputation, we experimented with different methods in a specific random variable (‘discrim_beingintersex’): PMM (Predictive Mean Matching), CART (Classification and Regression Trees) and lasso. Histograms for the original variable and its imputed versions were generated afterwards to visually compare the distributions to choose the method that best preserves the original data characteristics. Based on this, the CART method was chosen for imputation across the whole dataset.&nbsp;</p>
+</section>
+<section id="explaining-crosscountry-differences-in-support-levels" class="level3">
+<h3 class="anchored" data-anchor-id="explaining-crosscountry-differences-in-support-levels"><strong>3. Explaining cross–country differences in support levels</strong></h3>
+<ol type="1">
+<li><strong>Understanding the data</strong></li>
+</ol>
+<p>This step lays the groundwork for informed modeling decisions, enhancing model interpretability, reliability, and effectiveness in capturing complex data dynamics. Univariateanalysisallowed us to identify what the typical country and respondent would look like.&nbsp;&nbsp;</p>
+<p>The typical country would likely exhibit characteristics of a society that values freedom of expression and individual rights. It would have a relatively high level of inclusivity and tolerance towards diverse sexual orientations and gender identities, with policies in place to protect and uphold the rights of LGBT individuals. The country may offer opportunities for individuals to express their gender identity through official documentation and demonstrate a commitment to gender equality and development. However, it probably may not have explicit constitutional protections against discrimination based on sexual orientation.</p>
+<p>The typical respondent is around 51 years old, catholic, with a moderate self-placement on the political scale and that studied until they were between 16 and 19 years old. They are in favor of transgender people being able to change their civil documents, although they may not necessarily advocate for a third gender category in official documents. It is likely that they do not have friends who are transgender or transexual. Despite perceiving moderate levels of discrimination based on gender, sexual orientation, and being intersexual, they generally support LGBT rights. For instance, they believe that schools should provide information about being intersex and would feel comfortable if their children were in a relationship with someone of the same sex.&nbsp;</p>
+<p>However, they tend to express discomfort with the idea of working with homosexual, transgender, or intersexual colleagues. If their children were in a relationship with someone transgender or intersexual, they would feel uncomfortable with the situation. They may also appear reluctant to publicly defend victims of discrimination. Conversely, they would feel comfortable with a woman holding the highest elected political position, but their comfort level may vary when considering a transgender individual in the same role.&nbsp;</p>
+<p>By using cross table analysis, we checked the distribution patterns of support for transgender individuals changing official documents across different countries. We found a significant variation (p &gt; 0.05) in said support levels. For example, in Austria, Belgium, Denmark, and other countries, most respondents are in favor of this change, with percentages ranging from 60% to 85%. However, in Bulgaria, Hungary, Romania, and other countries, the proportion of support is much lower, generally below 30%.</p>
+<p>To see how national policies affect the acceptance of transgender individuals changing their civil documents, we employed logit regression due to the binary nature of the target variable. Our findings revealed that higher levels of freedom of expression, progressive LGBT policies, and a greater Gender Development Index (GDI) significantly and positively influence acceptance: increases in these indices imply a greater likelihood of acceptance. On the other hand, the presence of constitutional protections against LGBT discrimination, despite being statistically significant, was linked with a decreased likelihood of acceptance. This counterintuitive finding suggests that legal protections do not straightforwardly lead to broader societal acceptance, highlighting the complex relationship between legal measures and social attitudes.</p>
+<ol start="2" type="1">
+<li><strong>Feature engineering</strong></li>
+</ol>
+<p>New features were created by aggregating existing ones to capture underlying patterns more effectively, simplify the dataset, and potentially enhance model performance. We aggregated related variables into composite indicators representing broader concepts, and we did so for the variables related to acts of discrimination, colleagues at work, love relationship of childand self-experience with discrimination. Each of them combines various related actions by using a mean. For instance, ‘colleagues’ reflects the average tolerance towards the presence of diverse sexual orientations and identities within a workplace. This process helps facilitate interpretation, improve robustness, and ensures that the models can leverage the most informative and representative features to generate accurate and meaningful predictions or classifications.</p>
+<ol start="3" type="1">
+<li><strong>Unsupervised modeling: Principal Component Analysis (PCA) and clustering</strong></li>
+</ol>
+<p>We aimed to define profiles in the previous section, but the ones resulting from the unsupervised modeling are more accurate as they consider both country-level factor and individual features at the same time, and discovers patterns, groupings, or structures within the data on their own.&nbsp;</p>
+<p>By first applying PCA, we reduce the dataset to its most informative components, capturing the bulk of the variance with just three principal components representing. The first three PCA explained 32,4% of the total variance. The resulting three clusters from the clustering analysis, aligned with the three principal components, suggest that these reduced dimensions effectively encapsulate the inherent groupings within the data.</p>
+<p>Cluster 1 respondents show less support for transgender rights and place moderate importance on freedom of expression and LGBT policies. They tend to value social aspects but show limited support for legal anti-discrimination protections, suggesting weaker legal equality measures. This cluster has ties to lower gender equality levels, indicated by a negative association with the Gender Development Index. The minimal importance of gender and a slight negative tendency towards acts against discrimination and inclusion of a third gender in official documents reflect that, generally, this group is cautious about fully embracing inclusivity and proactive discrimination-prevention actions. Demographically, members of this cluster often lean moderately left politically and are slightly younger than average.</p>
+<p>Cluster 2 has the highest support for transgender rights but shows a clear resistance to free expression and LGBT policies, suggesting a conflicting stance where gender identity may be acknowledged, yet broader freedoms and rights are constrained. Legal protections against discrimination seem insufficient or ineffective here. This cluster does not place much importance on gender marker changes, indicating either a lack of awareness or a social environment less receptive to gender identity issues. On an individual level, it includes individuals with a moderate to right leaning political ideology and slightly older than average.</p>
+<p>Cluster 3 displays a balanced mix of attributes, presenting moderate transgender rights support, slightly favoring free expression and LGBT policies, indicating a more open social environment. There is stronger legal support for equality, but this cluster also faces challenges in formal gender identity recognition. With mixed views on gender equality and a somewhat progressive yet cautious approach to gender identity, this cluster represents a balanced perspective with members typically holding neutral political views and being older than average, though not as much as Cluster 2.</p>
+</section>
+<section id="regression-and-machine-learning-models" class="level3">
+<h3 class="anchored" data-anchor-id="regression-and-machine-learning-models"><strong>4. Regression and machine learning models</strong></h3>
+<ol type="1">
+<li><strong>Multilevel Regression Model</strong></li>
+</ol>
+<p>As the data has a multilevel structure, that is, observations are organised in nested levels with each level representing a different unit of analysis, a multilevel or hierarchical model is the most appropriate model . Multilevel models can distinguish between both within-group variation (variation within the same higher-level unit) and between-group variation (variation between different higher-level units) which allows for the estimation of predictors within different levels of the hierarchy. The data utilized in this assignment contains two levels: the individuals level (the lower level) and the country level (the higher level). The country level variables: c<em>onstitutional_protections_against_discrimination, lgbt_policy_index, gender_marker_change, gdi</em>&nbsp;and&nbsp;<em>countrycode</em>&nbsp;are specified as the random effects in the model and all survey variables as fixed effects. This multilevel model allows us to create a model with differing intercepts for the higher level variables and interpret the coefficients of the lower level variables free from any effect of the higher level variables.</p>
+<p><br>
+The variance and the standard deviation of the random effects signify the differences and the standardized differences among the units of the random effect variable respectively. As all random effect variables are measured in different scales only the standard deviations are interpreted. ‘countrycode’, ‘freedom_expresion_index’ and ‘gender_marker_change’ show considerable high standard deviations indicating high variability in intercepts across different levels of this variable, meaning the values of these variables differ significantly from one another.&nbsp;&nbsp;</p>
+<p>Note that all coefficients are interpreted holding all other variables constant and only the statistically significant variables are interpreted. When log-odds are positive, they signify a higher likelihood of voting ‘no’. We identified that respondents who are less likely to vote ‘no’ for transgender individuals to change their civil documents are women compared to men, individuals who have not shared content against discrimination compared to those who have, individuals who have voted ‘totally comfortable’ on the item asking if they are comfortable with having homosexual or bisexual colleagues compared to those who are totally uncomfortable, individuals who have voted that they are indifferent to having transgender colleagues compared to compared to those who have voted they are totally uncomfortable, individuals who vote ‘indifferent’ to the statement if they would be comfortable with their child having a same-sex partner compared to those who vote ‘totally comfortable’, and individuals who agree that they are comfortable with two women showing affection in public compared to those who are uncomfortable.</p>
+<p>On the other hand, people who are more likely to vote ‘no’ for transgender individuals to change their civil documents are individuals who do not believe official documents should include a third gender compared to those who do believe official documents should include a third gender, Individuals who have not had contact with transgender or transsexual individuals compared to to those who have had such contact, individuals with higher disagreement with regards to the statement that LGBTQ+ individuals should have the same rights as heterosexual individuals, individuals with higher disagreement on the item if schools should inform about being intersex, individuals who are more leaning towards not believing discrimination based on sexual orientation happens in their country.</p>
+<ol start="2" type="1">
+<li><strong>Machine Learning Models</strong></li>
+</ol>
+<p>The best model which was selected among all cross-validated models is the Random Forest model. For this model, the accuracy is rather high (0.80) meaning that the model predicts right in 80% of the cases when given new data. Kappa signifies the level of agreement between the predictions made by a classification model and the actual class labels, corrected for agreement occurring by chance. A kappa value of 0.57 suggests a moderate level of agreement. Moreover, the Predicted vs.&nbsp;Actual plot shows the model predicts the new data quite well (see apendix). The ten most important variables for the model are <em>officialdocuments_includethirdgend2, lgbstatements_samerightashetero, schoolinformdiv_beingintersex, lgbt_policy_index, showaffectionpublic_twowomen, ageexact, freedom_expresion_index, colleagues_homosexualbisexual3, colleagues_transgender3</em>, and <em>gdi.</em></p>
+</section>
+<section id="conclusion" class="level3">
+<h3 class="anchored" data-anchor-id="conclusion"><strong>5. Conclusion</strong></h3>
+<p>In conclusion, this comprehensive analysis leveraging Eurobarometer data has elucidated the intricate landscape of public opinion towards transgender rights across Europe. Through meticulous variable selection, data preprocessing, and a combination of unsupervised and supervised modeling techniques, we have uncovered nuanced insights into the factors that shape societal attitudes towards transgender individuals’ ability to change their civil documentation.</p>
+<p>The exploratory analysis revealed significant cross-country variations in support for transgender rights, highlighting the role of socio-political contexts in shaping public opinion. PCA and clustering, provided a deeper understanding of the underlying dimensions of public attitudes, identifying distinct clusters of respondents with varying levels of support and resistance towards transgender rights. Finally, the development of a predictive model with a high accuracy and moderate kappa value indicates its reliability and potential applicability in forecasting and strategizing interventions aimed at enhancing transgender rights in other countries.&nbsp;</p>
+<p>This work underscores the complexity of public opinion on transgender rights, pointing to the intricate interplay of legal, social, and political factors. It also highlights the importance of nuanced, data-driven approaches in understanding and addressing the challenges faced by transgender individuals in achieving legal recognition and societal acceptance. Future research should build on these findings, exploring longitudinal changes in attitudes and the impact of specific policy interventions, to further our understanding of this critical aspect of social justice and human rights.</p>
+</section>
+<section id="references" class="level3">
+<h3 class="anchored" data-anchor-id="references"><strong>6. References</strong></h3>
+<p>Bowers, &amp; Whitley, C. T. (2020). What Drives Support for Transgender Rights? Assessing the Effects of Biological Attribution on U.S. Public Opinion of Transgender Rights. Sex Roles, 83(7-8), 399–411. <a href="https://doi.org/10.1007/s11199-019-01118-9" class="uri">https://doi.org/10.1007/s11199-019-01118-9</a>&nbsp;&nbsp;&nbsp;</p>
+<p>Dicklitch-Nelson, &amp; Rahman, I. (2022). Transgender rights are human rights: A cross-national comparison of transgender rights in 204 countries. Journal of Human Rights, 21(5), 525–541. <a href="https://doi.org/10.1080/14754835.2022.2100985" class="uri">https://doi.org/10.1080/14754835.2022.2100985</a>&nbsp;&nbsp;</p>
+<p>Jaramillo Vélez, &amp; Carlson, L. (2021). Trans rights and wrongs : a comparative study of legal reform concerning trans persons.&nbsp;</p>
+</section>
+<section id="appendices" class="level3">
+<h3 class="anchored" data-anchor-id="appendices"><strong>7. Appendices</strong></h3>
+<ol type="1">
+<li><strong>Country-level variables shortlist</strong></li>
+</ol>
+<ul>
+<li><p>Freedom of the press: <a href="https://freedomhouse.org/reports/publication-archives">Publication Archives | Freedom House</a></p></li>
+<li><p>Freedom of expression: <a href="https://ourworldindata.org/grapher/freedom-of-expression-index?tab=table&amp;time=2013..latest">Freedom of expression index, 2013 to 2022 (ourworldindata.org)</a></p></li>
+<li><p>More LGBT+ indicators: from the LGBT+ Rights section from Our world in data.&nbsp;</p></li>
+<li><p>GINI index: <a href="https://ourworldindata.org/what-is-the-gini-coefficient" class="uri">https://ourworldindata.org/what-is-the-gini-coefficient</a>&nbsp;</p></li>
+<li><p>UN Indexes, including Human Development Index, Gender Development Index, Inequality-Adjusted Human Development Index, Gender Inequality Index: <a href="https://hdr.undp.org/data-center/documentation-and-downloads" class="uri">https://hdr.undp.org/data-center/documentation-and-downloads</a>&nbsp;</p></li>
+</ul>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const isCodeAnnotation = (el) => {
+    for (const clz of el.classList) {
+      if (clz.startsWith('code-annotation-')) {                     
+        return true;
+      }
+    }
+    return false;
+  }
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    text: function(trigger) {
+      const codeEl = trigger.previousElementSibling.cloneNode(true);
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+      let selectedAnnoteEl;
+      const selectorForAnnotation = ( cell, annotation) => {
+        let cellAttr = 'data-code-cell="' + cell + '"';
+        let lineAttr = 'data-code-annotation="' +  annotation + '"';
+        const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+        return selector;
+      }
+      const selectCodeLines = (annoteEl) => {
+        const doc = window.document;
+        const targetCell = annoteEl.getAttribute("data-target-cell");
+        const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+        const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+        const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+        const lineIds = lines.map((line) => {
+          return targetCell + "-" + line;
+        })
+        let top = null;
+        let height = null;
+        let parent = null;
+        if (lineIds.length > 0) {
+            //compute the position of the single el (top and bottom and make a div)
+            const el = window.document.getElementById(lineIds[0]);
+            top = el.offsetTop;
+            height = el.offsetHeight;
+            parent = el.parentElement.parentElement;
+          if (lineIds.length > 1) {
+            const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+            const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+            height = bottom - top;
+          }
+          if (top !== null && height !== null && parent !== null) {
+            // cook up a div (if necessary) and position it 
+            let div = window.document.getElementById("code-annotation-line-highlight");
+            if (div === null) {
+              div = window.document.createElement("div");
+              div.setAttribute("id", "code-annotation-line-highlight");
+              div.style.position = 'absolute';
+              parent.appendChild(div);
+            }
+            div.style.top = top - 2 + "px";
+            div.style.height = height + 4 + "px";
+            let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+            if (gutterDiv === null) {
+              gutterDiv = window.document.createElement("div");
+              gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+              gutterDiv.style.position = 'absolute';
+              const codeCell = window.document.getElementById(targetCell);
+              const gutter = codeCell.querySelector('.code-annotation-gutter');
+              gutter.appendChild(gutterDiv);
+            }
+            gutterDiv.style.top = top - 2 + "px";
+            gutterDiv.style.height = height + 4 + "px";
+          }
+          selectedAnnoteEl = annoteEl;
+        }
+      };
+      const unselectCodeLines = () => {
+        const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+        elementsIds.forEach((elId) => {
+          const div = window.document.getElementById(elId);
+          if (div) {
+            div.remove();
+          }
+        });
+        selectedAnnoteEl = undefined;
+      };
+      // Attach click handler to the DT
+      const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+      for (const annoteDlNode of annoteDls) {
+        annoteDlNode.addEventListener('click', (event) => {
+          const clickedEl = event.target;
+          if (clickedEl !== selectedAnnoteEl) {
+            unselectCodeLines();
+            const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+            if (activeEl) {
+              activeEl.classList.remove('code-annotation-active');
+            }
+            selectCodeLines(clickedEl);
+            clickedEl.classList.add('code-annotation-active');
+          } else {
+            // Unselect the line
+            unselectCodeLines();
+            clickedEl.classList.remove('code-annotation-active');
+          }
+        });
+      }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>
